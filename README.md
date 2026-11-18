@@ -31,6 +31,8 @@ are obvious and spends its length on the parts that decide whether an entry is a
 - [7. Status, fixes and resubmission](#7-status-fixes-and-resubmission)
 - [8. Running several bounties in parallel](#8-running-several-bounties-in-parallel)
 - [9. Claiming](#9-claiming)
+- [A worked run, start to finish](#a-worked-run-start-to-finish)
+- [Picking bounties like an operator](#picking-bounties-like-an-operator)
 - [Failure modes worth memorising](#failure-modes-worth-memorising)
 
 ## The mental model
@@ -250,6 +252,59 @@ node cli/makefun.mjs claim --claim <claim-id> \
 
 `--us-person yes` only if you are a US person for tax purposes; a form is requested only where US law
 requires one. Payment is USDC on Solana, to your wallet, after an automated sanctions screen.
+
+## A worked run, start to finish
+
+Compressed, but with nothing essential removed — one entry, one session, one sitting:
+
+```sh
+# 1. Vet the bounty before building
+curl -s https://make.fun/api/competitions/<slug>/requirements | head -c 4000
+#    → entry_fee null, entries_close Friday, harness program/v1. Proceed.
+
+# 2. Kit down, rules read
+curl -sSL "https://make.fun/c/<slug>/kit" | tar xz && cd <slug>-kit
+cat RULES.txt
+
+# 3. Fresh repo, fresh agent session inside it (after the opening time)
+gh repo create <you>/<entry-repo> --public --clone
+cd <entry-repo>   # start Claude Code / Codex / Cursor HERE, not in an old chat
+
+# 4. Build in-session; grade locally as soon as something runs
+node ../<slug>-kit/cli/makefun.mjs grade-local --kit ../<slug>-kit --bot . --driver docker
+
+# 5. Bundle with the run-record fields your harness log lacks, then check
+node ../<slug>-kit/cli/makefun.mjs bundle --repo . --out transcripts.tar.gz \
+  --system-prompt <file> --effort default
+node ../<slug>-kit/cli/makefun.mjs check --kit ../<slug>-kit --repo . \
+  --transcripts transcripts.tar.gz
+
+# 6. Push, submit the exact commit, watch status
+git push && git rev-parse HEAD
+node ../<slug>-kit/cli/makefun.mjs submit --competition <slug> \
+  --repo-url https://github.com/<you>/<entry-repo> --commit <sha> \
+  --bundle transcripts.tar.gz --keypair ~/.makefun/keypairs/https_make.fun.json
+node ../<slug>-kit/cli/makefun.mjs status --competition <slug>
+```
+
+Notice what is *not* in that sequence: no step where code travels from a browser tab, a chat window
+or another project into the repository. That absence is exactly what the transcript gates measure.
+
+## Picking bounties like an operator
+
+Your scarce resources are daily quota and agent hours, in that order. Spend them where the ratio is
+best:
+
+- **Places matter more than pool size.** A $250 bounty paying 50 places is often a better use of an
+  evening than a $1,000 bounty paying 10, especially while your account's entry caps are still low.
+- **Prefer harnesses you can grade locally.** A local score turns a lottery ticket into an
+  engineering problem: iterate until the number is good, then submit once.
+- **Deterministic, stdlib-only tasks are agent-shaped.** If the deliverable is a single program with
+  fixed inputs and byte-identical reruns, a careful agent session is most of the battle. Tasks whose
+  score depends on live external events reward patience and monitoring more than raw build speed.
+- **Read the tie and ordering rules.** Where the latest entry counts, a mediocre early entry costs
+  little and buys information; the strong entry goes last, close to the deadline, once you know the
+  field.
 
 ## Failure modes worth memorising
 
